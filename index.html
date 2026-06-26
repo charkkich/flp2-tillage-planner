@@ -507,38 +507,40 @@ function hourWeatherIcon(rain, temp) {
 // ══════════════════════════════════════════════
 //  FETCH OPEN-METEO — GFS + ICON blended
 // ══════════════════════════════════════════════
-const COMMON_PARAMS = `latitude=${LAT}&longitude=${LON}`
-  + `&hourly=precipitation,temperature_2m,relativehumidity_2m,windspeed_10m`
-  + `&daily=precipitation_sum,temperature_2m_max,temperature_2m_min,windspeed_10m_max,relativehumidity_2m_mean`
-  + `&timezone=Asia%2FBangkok`
-  + `&forecast_days=7`;
-
-async function fetchGFS() {
-  // GFS endpoint: /v1/gfs
-  const url = `https://api.open-meteo.com/v1/gfs?${COMMON_PARAMS}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`GFS API error ${res.status}`);
-  return res.json();
-}
-
-async function fetchICON() {
-  // DWD ICON endpoint: /v1/dwd-icon (global ICON model)
-  const url = `https://api.open-meteo.com/v1/dwd-icon?${COMMON_PARAMS}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`ICON API error ${res.status}`);
-  return res.json();
-}
-
 function averageArrays(a, b) {
   if (!a || !b) return (a || b || []);
   return a.map((v, i) => ((v ?? 0) + (b[i] ?? 0)) / 2);
 }
 
+// Fetch a single model using /v1/forecast with models= param
+async function fetchModel(modelName) {
+  const url = `https://api.open-meteo.com/v1/forecast?`
+    + `latitude=${LAT}&longitude=${LON}`
+    + `&hourly=precipitation,temperature_2m,relative_humidity_2m,wind_speed_10m`
+    + `&daily=precipitation_sum,temperature_2m_max,temperature_2m_min,wind_speed_10m_max`
+    + `&timezone=Asia%2FBangkok`
+    + `&forecast_days=7`
+    + `&models=${modelName}`;
+  const res = await fetch(url);
+  const data = await res.json();
+  if (data.error) throw new Error(`${modelName}: ${data.reason || 'API error'}`);
+  // Remap variable names (API uses relative_humidity_2m, wind_speed_10m without underscore variants)
+  if (data.hourly) {
+    data.hourly.relativehumidity_2m = data.hourly.relative_humidity_2m || data.hourly.relativehumidity_2m || [];
+    data.hourly.windspeed_10m       = data.hourly.wind_speed_10m       || data.hourly.windspeed_10m       || [];
+  }
+  if (data.daily) {
+    data.daily.windspeed_10m_max           = data.daily.wind_speed_10m_max           || data.daily.windspeed_10m_max           || [];
+    data.daily.relativehumidity_2m_mean    = data.daily.relative_humidity_2m_mean    || data.daily.relativehumidity_2m_mean    || new Array(7).fill(70);
+  }
+  return data;
+}
+
 async function fetchBlendedForecast() {
-  // Fetch GFS and ICON in parallel using dedicated endpoints
+  // Fetch GFS and ICON in parallel
   const [gfs, icon] = await Promise.all([
-    fetchGFS(),
-    fetchICON(),
+    fetchModel('gfs_seamless'),
+    fetchModel('icon_seamless'),
   ]);
 
   // Blend hourly
@@ -557,8 +559,8 @@ async function fetchBlendedForecast() {
       temperature_2m_min:      averageArrays(gfs.daily.temperature_2m_min, icon.daily.temperature_2m_min),
       windspeed_10m_max:       averageArrays(gfs.daily.windspeed_10m_max, icon.daily.windspeed_10m_max),
       relativehumidity_2m_mean: averageArrays(
-        gfs.daily.relativehumidity_2m_mean || gfs.daily.relativehumidity_2m_mean || new Array(7).fill(0),
-        icon.daily.relativehumidity_2m_mean || new Array(7).fill(0)
+        gfs.daily.relativehumidity_2m_mean,
+        icon.daily.relativehumidity_2m_mean
       ),
     }
   };
