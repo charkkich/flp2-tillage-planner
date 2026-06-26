@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FLP2 — วางแผนไถเตรียมแปลง</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --soil:     #2C1810;
+    --soil-mid: #5C3520;
+    --clay:     #A0714F;
+    --straw:    #D4B483;
+    --sky:      #1A3A5C;
+    --sky-mid:  #2E5F8A;
+    --mist:     #8BAFC8;
+    --rain:     #4A90D9;
+    --safe:     #2D7A4F;
+    --safe-bg:  #E8F5EE;
+    --warn:     #B07800;
+    --warn-bg:  #FFF8E1;
+    --danger:   #C0392B;
+    --danger-bg:#FDECEA;
+    --surface:  #F7F3EE;
+    --white:    #FEFCF9;
+    --border:   #E0D5C8;
+    --text:     #1E1410;
+    --text-2:   #6B5A4E;
+    --mono:     'IBM Plex Mono', monospace;
+    --sans:     'IBM Plex Sans Thai', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--sans);
+    background: var(--surface);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  /* ─── HEADER ─── */
+  .header {
+    background: var(--soil);
+    color: var(--straw);
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    border-bottom: 3px solid var(--clay);
+  }
+  .header-left { display: flex; align-items: center; gap: 12px; }
+  .logo-mark {
+    width: 36px; height: 36px;
+    background: var(--clay);
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+  .header h1 { font-size: 16px; font-weight: 600; letter-spacing: 0.02em; }
+  .header-sub { font-size: 11px; color: var(--mist); font-family: var(--mono); }
+  .station-badge {
+    font-family: var(--mono);
+    font-size: 11px;
+    background: var(--soil-mid);
+    border: 1px solid var(--clay);
+    border-radius: 4px;
+    padding: 4px 10px;
+    color: var(--straw);
+    text-align: right;
+  }
+  .last-update { font-size: 10px; color: var(--mist); margin-top: 2px; }
+
+  /* ─── LOADING ─── */
+  .loading-overlay {
+    position: fixed; inset: 0;
+    background: var(--soil);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    z-index: 999;
+    gap: 20px;
+    transition: opacity 0.5s;
+  }
+  .loading-overlay.hidden { opacity: 0; pointer-events: none; }
+  .loading-spinner {
+    width: 48px; height: 48px;
+    border: 3px solid var(--soil-mid);
+    border-top-color: var(--clay);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text { color: var(--straw); font-size: 14px; }
+  .loading-sub { color: var(--mist); font-size: 11px; font-family: var(--mono); }
+
+  /* ─── ERROR ─── */
+  .error-banner {
+    background: var(--danger-bg);
+    border: 1px solid var(--danger);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin: 20px;
+    color: var(--danger);
+    font-size: 13px;
+    display: none;
+  }
+
+  /* ─── HERO TODAY ─── */
+  .hero {
+    background: var(--sky);
+    color: var(--white);
+    padding: 28px 24px 24px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -60px; right: -60px;
+    width: 200px; height: 200px;
+    background: radial-gradient(circle, rgba(74,144,217,0.3) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .hero-eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--mist);
+    font-family: var(--mono);
+    margin-bottom: 8px;
+  }
+  .today-date { font-size: 20px; font-weight: 600; margin-bottom: 16px; }
+  .today-verdict {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 20px;
+    border-radius: 12px;
+    margin-bottom: 16px;
+    position: relative;
+  }
+  .verdict-icon { font-size: 40px; }
+  .verdict-text-main { font-size: 26px; font-weight: 700; }
+  .verdict-text-sub { font-size: 13px; opacity: 0.85; margin-top: 2px; }
+  .verdict-rain { font-family: var(--mono); font-size: 28px; font-weight: 500; margin-left: auto; }
+  .verdict-rain-label { font-size: 10px; opacity: 0.7; text-align: right; }
+
+  .verdict-SAFE    { background: rgba(45,122,79,0.85); }
+  .verdict-MONITOR { background: rgba(176,120,0,0.85); }
+  .verdict-DANGER  { background: rgba(192,57,43,0.85); }
+
+  /* Today stats */
+  .today-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+  }
+  .stat-card {
+    background: rgba(255,255,255,0.08);
+    border-radius: 8px;
+    padding: 10px 12px;
+    text-align: center;
+  }
+  .stat-val { font-size: 20px; font-weight: 600; font-family: var(--mono); }
+  .stat-label { font-size: 10px; color: var(--mist); margin-top: 2px; }
+
+  /* ─── MODEL BLEND BADGE ─── */
+  .model-blend {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 16px;
+    margin: 16px 24px 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    color: var(--text-2);
+  }
+  .model-pill {
+    background: var(--sky);
+    color: white;
+    border-radius: 20px;
+    padding: 2px 10px;
+    font-size: 11px;
+    font-family: var(--mono);
+    font-weight: 500;
+  }
+
+  /* ─── SECTION LABELS ─── */
+  .section { padding: 20px 24px; }
+  .section-title {
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-2);
+    font-family: var(--mono);
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* ─── 7-DAY STRIP ─── */
+  .day-strip {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scrollbar-width: thin;
+  }
+  .day-card {
+    flex: 0 0 auto;
+    width: 110px;
+    border-radius: 10px;
+    padding: 12px 10px;
+    text-align: center;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    background: var(--white);
+  }
+  .day-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+  .day-card.active { border-color: var(--sky); }
+  .day-card.SAFE    { border-left: 4px solid var(--safe); }
+  .day-card.MONITOR { border-left: 4px solid var(--warn); }
+  .day-card.DANGER  { border-left: 4px solid var(--danger); }
+
+  .day-name { font-size: 12px; font-weight: 600; color: var(--text-2); }
+  .day-date-num { font-size: 11px; color: var(--text-2); margin-bottom: 8px; font-family: var(--mono); }
+  .day-icon { font-size: 24px; margin-bottom: 6px; }
+  .day-rain { font-size: 18px; font-weight: 700; font-family: var(--mono); }
+  .day-rain-unit { font-size: 10px; color: var(--text-2); }
+  .day-verdict-label {
+    margin-top: 6px;
+    font-size: 10px;
+    font-weight: 600;
+    border-radius: 4px;
+    padding: 2px 6px;
+  }
+  .label-SAFE    { background: var(--safe-bg);   color: var(--safe); }
+  .label-MONITOR { background: var(--warn-bg);   color: var(--warn); }
+  .label-DANGER  { background: var(--danger-bg); color: var(--danger); }
+
+  /* ─── HOURLY CHART ─── */
+  .hourly-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .hourly-date-label { font-size: 14px; font-weight: 600; }
+
+  .hourly-scroll {
+    overflow-x: auto;
+    padding-bottom: 8px;
+    scrollbar-width: thin;
+  }
+  .hourly-grid {
+    display: flex;
+    gap: 6px;
+    min-width: max-content;
+  }
+  .hour-block {
+    width: 60px;
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--white);
+    border: 1px solid var(--border);
+    text-align: center;
+  }
+  .hour-block.rain-heavy { background: var(--danger-bg); border-color: var(--danger); }
+  .hour-block.rain-mid   { background: var(--warn-bg);   border-color: var(--warn); }
+  .hour-block.rain-light { background: #EBF4FF;           border-color: #90C3E8; }
+
+  .hour-label {
+    font-size: 10px;
+    font-family: var(--mono);
+    font-weight: 500;
+    padding: 5px 0;
+    background: var(--soil);
+    color: var(--straw);
+  }
+  .hour-icon { font-size: 16px; padding: 6px 0 2px; }
+  .hour-rain {
+    font-size: 13px;
+    font-weight: 600;
+    font-family: var(--mono);
+    padding-bottom: 2px;
+  }
+  .hour-rain-label { font-size: 9px; color: var(--text-2); padding-bottom: 4px; }
+  .hour-temp { font-size: 11px; color: var(--text-2); padding-bottom: 6px; }
+
+  /* Rain bar */
+  .rain-bar-wrap {
+    height: 50px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 0 8px 2px;
+    gap: 2px;
+  }
+  .rain-bar {
+    width: 12px;
+    background: var(--rain);
+    border-radius: 2px 2px 0 0;
+    min-height: 2px;
+    transition: height 0.3s;
+  }
+
+  /* ─── LEGEND ─── */
+  .legend {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    padding: 12px 24px;
+    border-top: 1px solid var(--border);
+    background: var(--white);
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+  }
+  .legend-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+  }
+
+  /* ─── FOOTER ─── */
+  footer {
+    text-align: center;
+    padding: 16px;
+    font-size: 11px;
+    color: var(--text-2);
+    font-family: var(--mono);
+    border-top: 1px solid var(--border);
+  }
+
+  /* ─── RESPONSIVE ─── */
+  @media (max-width: 480px) {
+    .today-stats { grid-template-columns: repeat(2, 1fr); }
+    .hero { padding: 20px 16px; }
+    .section { padding: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Loading -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div style="font-size:40px">🌧️</div>
+  <div class="loading-spinner"></div>
+  <div class="loading-text">กำลังโหลดข้อมูลพยากรณ์...</div>
+  <div class="loading-sub">GFS + ICON · Open-Meteo API</div>
+</div>
+
+<!-- Header -->
+<header class="header">
+  <div class="header-left">
+    <div class="logo-mark">🌾</div>
+    <div>
+      <div class="header h1" style="font-size:15px;font-weight:600;color:var(--straw)">FLP2 วางแผนไถแปลง</div>
+      <div class="header-sub">Farm Lert Phan 2 · San Sai, Chiang Mai</div>
+    </div>
+  </div>
+  <div class="station-badge">
+    <div>ISANSA66</div>
+    <div class="last-update" id="lastUpdateTime">—</div>
+  </div>
+</header>
+
+<div class="error-banner" id="errorBanner"></div>
+
+<!-- Hero: Today -->
+<section class="hero" id="heroSection">
+  <div class="hero-eyebrow">การตัดสินใจวันนี้</div>
+  <div class="today-date" id="todayDate">—</div>
+  <div class="today-verdict verdict-SAFE" id="todayVerdict">
+    <div class="verdict-icon" id="verdictIcon">⏳</div>
+    <div>
+      <div class="verdict-text-main" id="verdictText">กำลังโหลด...</div>
+      <div class="verdict-text-sub" id="verdictSub">—</div>
+    </div>
+    <div style="margin-left:auto;text-align:right">
+      <div class="verdict-rain" id="verdictRain">—</div>
+      <div class="verdict-rain-label">คาดการณ์ฝน (mm)</div>
+    </div>
+  </div>
+  <div class="today-stats">
+    <div class="stat-card">
+      <div class="stat-val" id="statMaxRain">—</div>
+      <div class="stat-label">ฝนสูงสุด/ชม. (mm)</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val" id="statTemp">—</div>
+      <div class="stat-label">อุณหภูมิ (°C)</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val" id="statHumid">—</div>
+      <div class="stat-label">ความชื้น (%)</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val" id="statWind">—</div>
+      <div class="stat-label">ลม (km/h)</div>
+    </div>
+  </div>
+</section>
+
+<!-- Model blend badge -->
+<div class="model-blend">
+  <span class="model-pill">GFS</span>
+  <span class="model-pill">ICON</span>
+  <span>เฉลี่ยจาก 2 โมเดล ผ่าน Open-Meteo API</span>
+  <span style="margin-left:auto;font-family:var(--mono);font-size:11px" id="coordBadge">18.9926°N 98.9706°E</span>
+</div>
+
+<!-- 7-Day section -->
+<section class="section">
+  <div class="section-title">7 วันข้างหน้า</div>
+  <div class="day-strip" id="dayStrip">
+    <!-- injected by JS -->
+  </div>
+</section>
+
+<!-- Hourly section -->
+<section class="section" style="padding-top:0">
+  <div class="hourly-header">
+    <div class="section-title" style="margin-bottom:0;flex:1">รายชั่วโมง</div>
+    <div class="hourly-date-label" id="hourlyDateLabel">—</div>
+  </div>
+  <div class="hourly-scroll">
+    <div class="hourly-grid" id="hourlyGrid">
+      <!-- injected by JS -->
+    </div>
+  </div>
+</section>
+
+<!-- Legend -->
+<div class="legend">
+  <div class="legend-item">
+    <div class="legend-dot" style="background:var(--safe)"></div>
+    <span><b>ไถได้</b> — ฝนคาด &lt;5 mm</span>
+  </div>
+  <div class="legend-item">
+    <div class="legend-dot" style="background:var(--warn)"></div>
+    <span><b>เฝ้าระวัง</b> — ฝนคาด 5–20 mm</span>
+  </div>
+  <div class="legend-item">
+    <div class="legend-dot" style="background:var(--danger)"></div>
+    <span><b>ห้ามไถ</b> — ฝนคาด &gt;20 mm</span>
+  </div>
+</div>
+
+<footer>FLP2 Tillage Planner · ข้อมูลจาก Open-Meteo (GFS + ICON) · อัพเดทอัตโนมัติทุก 3 ชม.</footer>
+
+<script>
+// ══════════════════════════════════════════════
+//  CONFIG
+// ══════════════════════════════════════════════
+const LAT  = 18.9926;
+const LON  = 98.9706;
+
+// Tillage thresholds
+const SAFE_MAX    = 5;
+const MONITOR_MAX = 20;
+
+// Day names TH
+const DAY_TH = ['อา.','จ.','อ.','พ.','พฤ.','ศ.','ส.'];
+const MONTH_TH = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+
+function fmtDateTH(d) {
+  return `${DAY_TH[d.getDay()]} ${d.getDate()} ${MONTH_TH[d.getMonth()]} ${d.getFullYear()+543}`;
+}
+function fmtDateShort(d) {
+  return `${d.getDate()} ${MONTH_TH[d.getMonth()]}`;
+}
+
+// ══════════════════════════════════════════════
+//  VERDICT
+// ══════════════════════════════════════════════
+function getVerdict(mm) {
+  if (mm < SAFE_MAX)    return { key:'SAFE',    th:'ไถได้',      sub:`ฝนคาด ${mm.toFixed(1)} mm — ดินพร้อมไถ`, icon:'✅' };
+  if (mm < MONITOR_MAX) return { key:'MONITOR', th:'เฝ้าระวัง',  sub:`ฝนคาด ${mm.toFixed(1)} mm — ตรวจสอบก่อนไถ`, icon:'⚠️' };
+  return                       { key:'DANGER',  th:'ห้ามไถ',     sub:`ฝนคาด ${mm.toFixed(1)} mm — ดินเปียก`, icon:'🚫' };
+}
+
+function hourWeatherIcon(rain, temp) {
+  if (rain > 10) return '⛈️';
+  if (rain > 2)  return '🌧️';
+  if (rain > 0)  return '🌦️';
+  if (temp > 35) return '☀️';
+  return '⛅';
+}
+
+// ══════════════════════════════════════════════
+//  FETCH OPEN-METEO — GFS + ICON blended
+// ══════════════════════════════════════════════
+async function fetchModel(model) {
+  const url = `https://api.open-meteo.com/v1/forecast?`
+    + `latitude=${LAT}&longitude=${LON}`
+    + `&hourly=precipitation,temperature_2m,relativehumidity_2m,windspeed_10m`
+    + `&daily=precipitation_sum,temperature_2m_max,temperature_2m_min,windspeed_10m_max,relativehumidity_2m_mean`
+    + `&timezone=Asia%2FBangkok`
+    + `&forecast_days=7`
+    + `&models=${model}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`${model} API error ${res.status}`);
+  return res.json();
+}
+
+function averageArrays(a, b) {
+  return a.map((v, i) => (v + b[i]) / 2);
+}
+
+async function fetchBlendedForecast() {
+  // Fetch GFS and ICON in parallel
+  const [gfs, icon] = await Promise.all([
+    fetchModel('gfs_seamless'),
+    fetchModel('icon_seamless'),
+  ]);
+
+  // Blend hourly
+  const blended = {
+    hourly: {
+      time:                gfs.hourly.time,
+      precipitation:       averageArrays(gfs.hourly.precipitation, icon.hourly.precipitation),
+      temperature_2m:      averageArrays(gfs.hourly.temperature_2m, icon.hourly.temperature_2m),
+      relativehumidity_2m: averageArrays(gfs.hourly.relativehumidity_2m, icon.hourly.relativehumidity_2m),
+      windspeed_10m:       averageArrays(gfs.hourly.windspeed_10m, icon.hourly.windspeed_10m),
+    },
+    daily: {
+      time:                    gfs.daily.time,
+      precipitation_sum:       averageArrays(gfs.daily.precipitation_sum, icon.daily.precipitation_sum),
+      temperature_2m_max:      averageArrays(gfs.daily.temperature_2m_max, icon.daily.temperature_2m_max),
+      temperature_2m_min:      averageArrays(gfs.daily.temperature_2m_min, icon.daily.temperature_2m_min),
+      windspeed_10m_max:       averageArrays(gfs.daily.windspeed_10m_max, icon.daily.windspeed_10m_max),
+      relativehumidity_2m_mean: averageArrays(
+        gfs.daily.relativehumidity_2m_mean || gfs.daily.relativehumidity_2m_mean || new Array(7).fill(0),
+        icon.daily.relativehumidity_2m_mean || new Array(7).fill(0)
+      ),
+    }
+  };
+  return blended;
+}
+
+// ══════════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════════
+let forecastData = null;
+let selectedDayIndex = 0;
+
+// ══════════════════════════════════════════════
+//  RENDER
+// ══════════════════════════════════════════════
+function renderHero(dayIdx) {
+  const d = forecastData.daily;
+  const rain    = d.precipitation_sum[dayIdx];
+  const tempMax = d.temperature_2m_max[dayIdx];
+  const humid   = d.relativehumidity_2m_mean[dayIdx];
+  const wind    = d.windspeed_10m_max[dayIdx];
+
+  // Max hourly rain for this day
+  const localDate = d.time[dayIdx]; // 'YYYY-MM-DD'
+  const hours = forecastData.hourly.time
+    .map((t, i) => ({ t, rain: forecastData.hourly.precipitation[i] }))
+    .filter(x => x.t.startsWith(localDate));
+  const maxHourlyRain = Math.max(...hours.map(x => x.rain), 0);
+
+  const verdict = getVerdict(rain);
+  const date = new Date(localDate + 'T12:00:00+07:00');
+
+  document.getElementById('todayDate').textContent = fmtDateTH(date);
+  const vEl = document.getElementById('todayVerdict');
+  vEl.className = `today-verdict verdict-${verdict.key}`;
+  document.getElementById('verdictIcon').textContent = verdict.icon;
+  document.getElementById('verdictText').textContent = verdict.th;
+  document.getElementById('verdictSub').textContent = verdict.sub;
+  document.getElementById('verdictRain').textContent = rain.toFixed(1);
+  document.getElementById('statMaxRain').textContent = maxHourlyRain.toFixed(1);
+  document.getElementById('statTemp').textContent = `${tempMax.toFixed(0)}°`;
+  document.getElementById('statHumid').textContent = `${humid.toFixed(0)}%`;
+  document.getElementById('statWind').textContent = `${wind.toFixed(0)}`;
+}
+
+function renderDayStrip() {
+  const strip = document.getElementById('dayStrip');
+  strip.innerHTML = '';
+  forecastData.daily.time.forEach((dateStr, i) => {
+    const date = new Date(dateStr + 'T12:00:00+07:00');
+    const rain = forecastData.daily.precipitation_sum[i];
+    const verdict = getVerdict(rain);
+
+    const card = document.createElement('div');
+    card.className = `day-card ${verdict.key}${i === selectedDayIndex ? ' active' : ''}`;
+    card.innerHTML = `
+      <div class="day-name">${DAY_TH[date.getDay()]}</div>
+      <div class="day-date-num">${fmtDateShort(date)}</div>
+      <div class="day-icon">${verdict.icon}</div>
+      <div class="day-rain">${rain.toFixed(1)}<span class="day-rain-unit"> mm</span></div>
+      <div class="day-verdict-label label-${verdict.key}">${verdict.th}</div>
+    `;
+    card.addEventListener('click', () => {
+      selectedDayIndex = i;
+      renderAll();
+    });
+    strip.appendChild(card);
+  });
+}
+
+function renderHourly(dayIdx) {
+  const dateStr = forecastData.daily.time[dayIdx];
+  const date = new Date(dateStr + 'T12:00:00+07:00');
+  document.getElementById('hourlyDateLabel').textContent = fmtDateTH(date);
+
+  const hours = forecastData.hourly.time
+    .map((t, i) => ({
+      t,
+      rain: forecastData.hourly.precipitation[i],
+      temp: forecastData.hourly.temperature_2m[i],
+      humid: forecastData.hourly.relativehumidity_2m[i],
+      wind: forecastData.hourly.windspeed_10m[i],
+    }))
+    .filter(x => x.t.startsWith(dateStr));
+
+  const maxRain = Math.max(...hours.map(x => x.rain), 1);
+
+  const grid = document.getElementById('hourlyGrid');
+  grid.innerHTML = '';
+
+  hours.forEach(h => {
+    const hour = new Date(h.t.replace(' ','T') + ':00+07:00').getHours();
+    const rainCls = h.rain >= MONITOR_MAX ? 'rain-heavy' : h.rain >= SAFE_MAX ? 'rain-mid' : h.rain > 0 ? 'rain-light' : '';
+    const barH = Math.round((h.rain / maxRain) * 46);
+
+    const block = document.createElement('div');
+    block.className = `hour-block ${rainCls}`;
+    block.innerHTML = `
+      <div class="hour-label">${String(hour).padStart(2,'0')}:00</div>
+      <div class="rain-bar-wrap">
+        <div class="rain-bar" style="height:${Math.max(barH,2)}px"></div>
+      </div>
+      <div class="hour-icon">${hourWeatherIcon(h.rain, h.temp)}</div>
+      <div class="hour-rain">${h.rain.toFixed(1)}</div>
+      <div class="hour-rain-label">mm</div>
+      <div class="hour-temp">${h.temp.toFixed(0)}°C · ${h.humid.toFixed(0)}%</div>
+    `;
+    grid.appendChild(block);
+  });
+}
+
+function renderAll() {
+  renderHero(selectedDayIndex);
+  renderDayStrip();
+  renderHourly(selectedDayIndex);
+}
+
+// ══════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════
+async function init() {
+  try {
+    forecastData = await fetchBlendedForecast();
+    document.getElementById('lastUpdateTime').textContent =
+      'อัพเดท ' + new Date().toLocaleTimeString('th-TH', { hour:'2-digit', minute:'2-digit' });
+    renderAll();
+    document.getElementById('loadingOverlay').classList.add('hidden');
+  } catch (err) {
+    const banner = document.getElementById('errorBanner');
+    banner.style.display = 'block';
+    banner.textContent = `❌ โหลดข้อมูลไม่ได้: ${err.message} — กรุณารีเฟรชหน้าเว็บ`;
+    document.getElementById('loadingOverlay').classList.add('hidden');
+  }
+}
+
+init();
+
+// Auto-refresh every 3 hours
+setInterval(init, 3 * 60 * 60 * 1000);
+</script>
+</body>
+</html>
